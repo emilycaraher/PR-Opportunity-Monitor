@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f8f8fa;
+    --border: #e4e4ea;
+    --navy: #1a2340;
+    --red: #c0272d;
+    --red-light: #fdf1f1;
+    --amber: #b45309;
+    --amber-light: #fef9ee;
+    --body: #3d4460;
+    --muted: #8890a4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--navy);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--navy);
+    padding: 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    flex-shrink: 0;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 16px; }
+
+  .run-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.06em;
+  }
+
+  .upload-zone {
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+
+  .upload-zone:hover { border-color: var(--red); color: #fff; background: rgba(192,39,45,0.2); }
+  .upload-zone input { display: none; }
+
+  .summary-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    overflow-x: auto;
+  }
+
+  .summary-stat { display: flex; flex-direction: column; gap: 3px; }
+
+  .stat-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--navy);
+  }
+
+  .stat-val.red { color: var(--red); }
+  .stat-val.amber { color: var(--amber); }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stat-divider { width: 1px; height: 36px; background: var(--border); flex-shrink: 0; }
+
+  .tabs {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    padding: 0 40px;
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 14px 20px;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tab:hover { color: var(--navy); }
+  .tab.active { color: var(--navy); font-weight: 500; border-bottom-color: var(--red); }
+
+  .tab .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    background: var(--surface);
+    color: var(--muted);
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .tab.active .badge {
+    background: var(--red-light);
+    color: var(--red);
+    border-color: rgba(192,39,45,0.2);
+  }
+
+  main { padding: 36px 40px; max-width: 860px; }
+
+  .client-panel { display: none; }
+  .client-panel.active { display: block; }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label .count { font-weight: 500; }
+  .section-label.strong-label .count { color: var(--red); }
+  .section-label.adj-label .count { color: var(--amber); }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* MATCH CARDS */
+  .match-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: var(--bg);
+    overflow: hidden;
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+
+  .match-card:hover { box-shadow: 0 2px 12px rgba(26,35,64,0.07); border-color: #d0d0da; }
+  .match-card.strong { border-left: 3px solid var(--red); }
+  .match-card.adjacent { border-left: 3px solid var(--amber); }
+
+  .card-header {
+    padding: 16px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    user-select: none;
+  }
+
+  .score-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .strong .score-pill { background: var(--red-light); color: var(--red); }
+  .adjacent .score-pill { background: var(--amber-light); color: var(--amber); }
+
+  .card-main { flex: 1; min-width: 0; }
+
+  .headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.975rem;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--navy);
+    margin-bottom: 7px;
+  }
+
+  .headline a { color: inherit; text-decoration: none; }
+  .headline a:hover { color: var(--red); }
+
+  .card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+  .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+
+  .tag.stale { color: var(--amber); background: var(--amber-light); border-color: rgba(180,83,9,0.2); }
+  .tag.calendar { color: #0369a1; background: #f0f9ff; border-color: rgba(3,105,161,0.2); }
+
+  .chevron {
+    color: var(--muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    margin-top: 4px;
+    transition: transform 0.2s;
+  }
+
+  .card-body {
+    display: none;
+    padding: 0 18px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-body.open { display: block; }
+
+  .why-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+
+  .why-text {
+    font-size: 0.8rem;
+    color: var(--body);
+    line-height: 1.55;
+    font-style: italic;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pitch-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 14px 0 8px;
+  }
+
+  .pitch-text {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--body);
+    padding: 14px 16px;
+    background: var(--surface);
+    border-radius: 6px;
+    border-left: 3px solid var(--red);
+    font-weight: 300;
+  }
+
+  /* SIMILAR STORIES */
+  .similar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .similar-toggle:hover { border-color: #c0c0cc; color: var(--navy); }
+
+  .similar-toggle .sim-chevron { transition: transform 0.2s; font-size: 0.6rem; }
+
+  .similar-list {
+    display: none;
+    margin-top: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .similar-list.open { display: block; }
+
+  .similar-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .similar-item:last-child { border-bottom: none; }
+
+  .sim-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+    flex-shrink: 0;
+    padding-top: 1px;
+    width: 40px;
+  }
+
+  .sim-headline {
+    font-size: 0.82rem;
+    color: var(--body);
+    line-height: 1.4;
+  }
+
+  .sim-headline a { color: inherit; text-decoration: none; }
+  .sim-headline a:hover { color: var(--red); }
+
+  /* ADJACENT LIST */
+  .adj-list { list-style: none; margin-bottom: 36px; }
+
+  .adj-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .adj-item:last-child { border-bottom: none; }
+
+  .adj-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--amber);
+    width: 44px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  .adj-content { flex: 1; min-width: 0; }
+
+  .adj-headline { font-size: 0.875rem; line-height: 1.45; color: var(--navy); margin-bottom: 5px; font-weight: 400; }
+  .adj-headline a { color: inherit; text-decoration: none; }
+  .adj-headline a:hover { color: var(--red); }
+
+  /* UPLOAD PROMPT */
+  #upload-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 64px);
+    text-align: center;
+    padding: 40px;
+  }
+
+  .upload-lockup { max-width: 440px; }
+
+  .upload-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 16px;
+  }
+
+  .upload-big {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.6rem;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--navy);
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+
+  .upload-sub {
+    color: var(--muted);
+    font-size: 0.875rem;
+    margin-bottom: 32px;
+    line-height: 1.65;
+    font-weight: 300;
+  }
+
+  .upload-cta {
+    display: inline-block;
+    background: var(--navy);
+    color: #fff;
+    padding: 12px 28px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s;
+  }
+
+  .upload-cta:hover { background: var(--red); }
+
+  #digest-view { display: none; }
+
+  @media (max-width: 600px) {
+    header { padding: 0 20px; }
+    .summary-bar { padding: 16px 20px; gap: 20px; }
+    .tabs { padding: 0 20px; }
+    main { padding: 24px 20px; }
+    .upload-big { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div>PR Monitor</div>
+  <div class="header-right">
+    <span class="run-date" id="run-date"></span>
+    <label class="upload-zone">
+      ↑ Load digest.json
+      <input type="file" accept=".json" id="file-input">
+    </label>
+  </div>
+</header>
+
+<div id="upload-prompt">
+  <div class="upload-lockup">
+    <div class="upload-eyebrow">Weekly Digest</div>
+    <div class="upload-big">This week's pitch opportunities.</div>
+    <div class="upload-sub">Load your digest.json from the notebook to see matched headlines and draft pitches across all clients.</div>
+    <label class="upload-cta">
+      Load digest.json
+      <input type="file" accept=".json" style="display:none" id="file-input-2">
+    </label>
+  </div>
+</div>
+
+<div id="digest-view">
+  <div class="summary-bar" id="summary-bar"></div>
+  <div class="tabs" id="tabs"></div>
+  <main id="main-content"></main>
+</div>
+
+<script>
+function loadData(data) {
+  document.getElementById('upload-prompt').style.display = 'none';
+  document.getElementById('digest-view').style.display = 'block';
+  document.getElementById('run-date').textContent =
+    new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+  renderSummary(data);
+  renderTabs(data);
+  renderPanels(data);
+}
+
+function renderSummary(data) {
+  const bar = document.getElementById('summary-bar');
+  let totalStrong = 0, totalAdj = 0;
+  Object.values(data).forEach(c => { totalStrong += c.strong.length; totalAdj += c.adjacent.length; });
+  bar.innerHTML = `
+    <div class="summary-stat"><div class="stat-val">${Object.keys(data).length}</div><div class="stat-label">Clients</div></div>
+    <div class="stat-divider"></div>
+    <div class="summary-stat"><div class="stat-val red">${totalStrong}</div><div class="stat-label">Strong Matches</div></div>
+    <div class="stat-divider"></div>
+    <div class="summary-stat"><div class="stat-val amber">${totalAdj}</div><div class="stat-label">Adjacent</div></div>
+    <div class="stat-divider"></div>
+    <div class="summary-stat"><div class="stat-val">${totalStrong + totalAdj}</div><div class="stat-label">Total Opportunities</div></div>
+  `;
+}
+
+function renderTabs(data) {
+  const tabs = document.getElementById('tabs');
+  const order = Object.keys(data);
+  tabs.innerHTML = order.map((key, i) => {
+    const c = data[key];
+    return `<div class="tab ${i===0?'active':''}" data-client="${key}">
+      ${c.name}<span class="badge">${c.strong.length + c.adjacent.length}</span>
+    </div>`;
+  }).join('');
+  tabs.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.client-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + tab.dataset.client).classList.add('active');
+    });
+  });
+}
+
+function renderPanels(data) {
+  const main = document.getElementById('main-content');
+  const order = Object.keys(data);
+  main.innerHTML = order.map((key, i) => {
+    const c = data[key];
+    return `<div class="client-panel ${i===0?'active':''}" id="panel-${key}">
+      ${renderStrongSection(c.strong)}
+      ${renderAdjacentSection(c.adjacent)}
+    </div>`;
+  }).join('');
+
+  // Pitch toggle
+  main.querySelectorAll('.card-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const body = h.nextElementSibling;
+      const chevron = h.querySelector('.chevron');
+      const open = body.classList.toggle('open');
+      chevron.style.transform = open ? 'rotate(180deg)' : '';
+    });
+  });
+
+  // Similar stories toggle
+  main.querySelectorAll('.similar-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const list = btn.nextElementSibling;
+      const chevron = btn.querySelector('.sim-chevron');
+      const open = list.classList.toggle('open');
+      chevron.style.transform = open ? 'rotate(180deg)' : '';
+      btn.querySelector('.sim-label').textContent = open ? 'Hide' : btn.dataset.label;
+    });
+  });
+}
+
+function renderStrongSection(matches) {
+  if (!matches.length) return '';
+  return `
+    <div class="section-label strong-label">Strong matches <span class="count">${matches.length}</span></div>
+    ${matches.map(m => renderStrongCard(m)).join('')}
+    <div style="margin-bottom:36px"></div>`;
+}
+
+function renderStrongCard(m) {
+  const similar = m.similar || [];
+  const simCount = similar.length;
+  const link = m.url ? `<a href="${m.url}" target="_blank" rel="noopener">${esc(m.headline)}</a>` : esc(m.headline);
+
+  const simHTML = simCount > 0 ? `
+    <div class="similar-toggle" data-label="${simCount} more on this story ▾">
+      <span class="sim-label">${simCount} more on this story</span>
+      <span class="sim-chevron">▾</span>
+    </div>
+    <div class="similar-list">
+      ${similar.map(s => `
+        <div class="similar-item">
+          <span class="sim-score">${s.score.toFixed(3)}</span>
+          <div class="sim-headline">${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">${esc(s.headline)}</a>` : esc(s.headline)}</div>
+        </div>`).join('')}
+    </div>` : '';
+
+  return `
+    <div class="match-card strong">
+      <div class="card-header">
+        <span class="score-pill">${m.score.toFixed(3)}</span>
+        <div class="card-main">
+          <div class="headline">${link}</div>
+          <div class="card-meta">
+            ${m.topic ? `<span class="tag">${esc(m.topic)}</span>` : ''}
+            ${m.is_calendar ? '<span class="tag calendar">proactive</span>' : ''}
+            ${m.stale ? '<span class="tag stale">⚠ older story</span>' : ''}
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="card-body">
+        ${m.why ? `<div class="why-label">Why this matched</div><div class="why-text">${esc(m.why)}</div>` : ''}
+        <div class="pitch-label">Draft pitch</div>
+        <div class="pitch-text">${esc(m.pitch || 'No pitch generated.')}</div>
+        ${simHTML}
+      </div>
+    </div>`;
+}
+
+function renderAdjacentSection(matches) {
+  if (!matches.length) return '';
+  return `
+    <div class="section-label adj-label">Adjacent matches <span class="count">${matches.length}</span></div>
+    <ul class="adj-list">
+      ${matches.map(m => {
+        const similar = m.similar || [];
+        const link = m.url ? `<a href="${m.url}" target="_blank" rel="noopener">${esc(m.headline)}</a>` : esc(m.headline);
+        const simHTML = similar.length > 0 ? `
+          <div class="similar-toggle" style="margin-top:6px" data-label="${similar.length} more on this story ▾">
+            <span class="sim-label">${similar.length} more on this story</span>
+            <span class="sim-chevron">▾</span>
+          </div>
+          <div class="similar-list">
+            ${similar.map(s => `
+              <div class="similar-item">
+                <span class="sim-score">${s.score.toFixed(3)}</span>
+                <div class="sim-headline">${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">${esc(s.headline)}</a>` : esc(s.headline)}</div>
+              </div>`).join('')}
+          </div>` : '';
+        return `<li class="adj-item">
+          <span class="adj-score">${m.score.toFixed(3)}</span>
+          <div class="adj-content">
+            <div class="adj-headline">${link}</div>
+            <div class="card-meta" style="margin-top:4px">
+              ${m.topic ? `<span class="tag">${esc(m.topic)}</span>` : ''}
+              ${m.stale ? '<span class="tag stale">stale</span>' : ''}
+            </div>
+            ${simHTML}
+          </div>
+        </li>`;
+      }).join('')}
+    </ul>`;
+}
+
+function esc(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try { loadData(JSON.parse(e.target.result)); }
+    catch { alert('Could not read file. Make sure you uploaded digest.json from the notebook.'); }
+  };
+  r.readAsText(file);
+}
+
+document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
+document.getElementById('file-input-2').addEventListener('change', e => handleFile(e.target.files[0]));
+
+const prompt = document.getElementById('upload-prompt');
+prompt.addEventListener('dragover', e => { e.preventDefault(); prompt.style.background = '#fdf1f1'; });
+prompt.addEventListener('dragleave', () => { prompt.style.background = ''; });
+prompt.addEventListener('drop', e => { e.preventDefault(); prompt.style.background = ''; handleFile(e.dataTransfer.files[0]); });
+</script>
+</body>
+</html>
